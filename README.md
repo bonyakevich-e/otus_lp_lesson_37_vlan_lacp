@@ -95,3 +95,57 @@ netplan apply
 После настройки второго VLAN`а ping должен работать между хостами testClient1, testServer1 и между хостами testClient2, testServer2.
 
 3. Настройка LACP между хостами inetRouter и centralRouter
+
+Необходимо на обоих хостах добавить конфигурационные файлы для интерфейсов eth1 и eth2:
+```
+vim /etc/sysconfig/network-scripts/ifcfg-eth1
+```
+```
+#Имя физического интерфейса
+DEVICE=eth1
+#Включать интерфейс при запуске системы
+ONBOOT=yes
+#Отключение DHCP-клиента
+BOOTPROTO=none
+#Указываем, что порт часть bond-интерфейса
+MASTER=bond0
+#Указываем роль bond
+SLAVE=yes
+NM_CONTROLLED=yes
+USERCTL=no
+```
+У интерфейса ifcfg-eth2 идентичный конфигурационный файл, в котором нужно изменить имя интерфейса.
+
+После настройки интерфейсов eth1 и eth2 нужно настроить bond-интерфейс, для этого создадим файл /etc/sysconfig/network-scripts/ifcfg-bond0:
+```
+DEVICE=bond0
+NAME=bond0
+#Тип интерфейса — bond
+TYPE=Bond
+BONDING_MASTER=yes
+#Указаваем IP-адрес 
+IPADDR=192.168.255.1
+#Указываем маску подсети
+NETMASK=255.255.255.252
+ONBOOT=yes
+BOOTPROTO=static
+#Указываем режим работы bond-интерфейса Active-Backup
+# fail_over_mac=1 — данная опция «разрешает отвалиться» одному интерфейсу
+BONDING_OPTS="mode=1 miimon=100 fail_over_mac=1"
+NM_CONTROLLED=yes
+```
+После создания данных конфигурационных файлов необходимо перезапустить сеть:
+```
+systemctl restart NetworkManager
+```
+На некоторых версиях RHEL/CentOS перезапуск сетевого интерфейса не запустит bond-интерфейс, в этом случае рекомендуется перезапустить хост.
+
+После настройки агрегации портов, необходимо проверить работу bond-интерфейса, для этого, на хосте inetRouter (192.168.255.1) запустим ping до centralRouter (192.168.255.2):
+```
+[root@inetRouter ~]# ping 192.168.255.2
+```
+Не отменяя ping подключаемся к хосту centralRouter и выключаем там интерфейс eth1: 
+```
+[root@centralRouter ~]# ip link set down eth1
+```
+После данного действия ping не должен пропасть, так как трафик пойдёт по-другому порту.
