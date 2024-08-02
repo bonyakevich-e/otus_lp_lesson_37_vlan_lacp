@@ -47,6 +47,51 @@ NAME=vlan1
 DEVICE=eth1.1
 ONBOOT=yes
 ```
+На хосте testServer1 создаем идентичный файл с другим IP-адресом (10.10.10.1).
 
+Перезапускаем сеть:
+```
+systemctl restart NetworkManager
+```
+Проверяем корректность настройки:
+```
+[vagrant@testClient1 ~]$ ip a
+[vagrant@testClient1 ~]$ ping 10.10.10.254
+```
+__Настройка VLAN на Ubuntu (на примере testClient2 )__
+Требуется создать файл /etc/netplan/50-cloud-init.yaml со следующим параметрами:
+```
+# This file is generated from information provided by the datasource.  Changes
+# to it will not persist across an instance reboot.  To disable cloud-init's
+# network configuration capabilities, write a file
+# /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:
+# network: {config: disabled}
+network:
+    version: 2
+    ethernets:
+        enp0s3:
+            dhcp4: true
+        #В разделе ethernets добавляем порт, на котором будем настраивать VLAN
+        enp0s8: {}
+    #Настройка VLAN
+    vlans:
+        #Имя VLANа
+        vlan2:
+          #Указываем номер VLAN`а
+          id: 2
+          #Имя физического интерфейса
+          link: enp0s8
+          #Отключение DHCP-клиента
+          dhcp4: no
+          #Указываем ip-адрес
+          addresses: [10.10.10.254/24]
+```
+На хосте testServer2 создаём идентичный файл с другим IP-адресом (10.10.10.1).
 
+После создания файлов нужно перезапустить сеть на обоих хостах: 
+```
+netplan apply
+```
+После настройки второго VLAN`а ping должен работать между хостами testClient1, testServer1 и между хостами testClient2, testServer2.
 
+3. Настройка LACP между хостами inetRouter и centralRouter
